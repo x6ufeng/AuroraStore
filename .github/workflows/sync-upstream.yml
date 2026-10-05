@@ -1,0 +1,20 @@
+name: Sync master with upstream
+
+# Scheduled workflows only run from the default branch, so this lives on `tv`
+# (the fork's default branch) and keeps `master` identical to upstream.
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fast-forward master to upstream
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh repo sync "${{ github.repository }}" --branch master
