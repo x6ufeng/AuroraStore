@@ -33,6 +33,7 @@ import com.aurora.store.compose.composition.UI
 import com.aurora.store.compose.navigation.NavDisplay
 import com.aurora.store.compose.navigation.Screen
 import com.aurora.store.compose.theme.AuroraTheme
+import com.aurora.store.compose.tv.TvTheme
 import com.aurora.store.compose.ui.lock.AppLockScreen
 import com.aurora.store.data.AppLockManager
 import com.aurora.store.data.model.NetworkStatus
@@ -122,7 +123,11 @@ class ComposeActivity : FragmentActivity() {
                         LocalUI provides localUI,
                         LocalNetworkStatus provides networkStatus
                     ) {
-                        NavDisplay(startDestination = startDestination)
+                        if (localUI == UI.TV) {
+                            TvTheme { NavDisplay(startDestination = startDestination) }
+                        } else {
+                            NavDisplay(startDestination = startDestination)
+                        }
                     }
 
                     // Plain surface behind the prompt so dismissing it doesn't flash the lock card

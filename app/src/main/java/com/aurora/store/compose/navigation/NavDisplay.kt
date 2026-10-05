@@ -35,6 +35,9 @@ import com.aurora.extensions.toast
 import com.aurora.store.AuroraApp
 import com.aurora.store.ComposeActivity
 import com.aurora.store.R
+import com.aurora.store.compose.composition.LocalUI
+import com.aurora.store.compose.composition.UI
+import com.aurora.store.compose.tv.TvSearchScreen
 import com.aurora.store.compose.ui.about.AboutScreen
 import com.aurora.store.compose.ui.accounts.AccountsScreen
 import com.aurora.store.compose.ui.accounts.GoogleLoginScreen
@@ -306,7 +309,13 @@ fun NavDisplay(startDestination: NavKey) {
                             slideOutVertically(navSlideSpec) { it }
                     }
                 }
-            ) { SearchScreen() }
+            ) {
+                if (LocalUI.current == UI.TV) {
+                    TvSearchScreen(onNavigateTo = ::navigate)
+                } else {
+                    SearchScreen()
+                }
+            }
 
             entry<Screen.Splash> { screen ->
                 SplashScreen(

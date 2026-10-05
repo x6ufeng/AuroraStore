@@ -43,7 +43,12 @@ import com.aurora.store.compose.composable.InsufficientStorageDialog
 import com.aurora.store.compose.composable.TopAppBar
 import com.aurora.store.compose.composable.TrackerUpdateWarningDialog
 import com.aurora.store.compose.composition.LocalNetworkStatus
+import com.aurora.store.compose.composition.LocalUI
+import com.aurora.store.compose.composition.UI
 import com.aurora.store.compose.navigation.Destination
+import com.aurora.store.compose.tv.TvAppsGamesScreen
+import com.aurora.store.compose.tv.TvMainScreen
+import com.aurora.store.compose.tv.TvUpdatesScreen
 import com.aurora.store.compose.ui.apps.AppsGamesScreen
 import com.aurora.store.compose.ui.commons.MoreSheet
 import com.aurora.store.compose.ui.commons.NetworkScreen
@@ -172,158 +177,176 @@ fun MainScreen(
         )
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = stringResource(MainTab.entries[pagerState.currentPage].labelRes),
-                showNavigationIcon = false,
-                actions = {
-                    IconButton(onClick = { onNavigateTo(Destination.Notifications) }) {
-                        BadgedBox(
-                            badge = {
-                                if (notificationCount > 0) Badge { Text("$notificationCount") }
+    @Composable
+    fun UpdatesTab() {
+        val tv = LocalUI.current == UI.TV
+        val onRequestUpdate: (Update) -> Unit = { update ->
+            if (!Preferences.getBoolean(context, PREFERENCE_UPDATES_WARN_TRACKERS, false)) {
+                performUpdate(update)
+            } else {
+                val job = coroutineScope.launch {
+                    val installedVc = PackageUtil.getInstalledVersionCode(
+                        context,
+                        update.packageName
+                    )
+                    val trackers = updatesViewModel.getNewTrackers(
+                        update.packageName,
+                        installedVc
+                    )
+                    if (trackers.isEmpty()) {
+                        performUpdate(update)
+                    } else {
+                        trackerWarning = update to trackers
+                    }
+                }
+                checkingJobs[update.packageName] = job
+            }
+        }
+        val onRequestUpdateAll: (List<Update>) -> Unit = { selectedUpdates ->
+            val needsObb = selectedUpdates.any { it.fileList.requiresObbDir() }
+            if (needsObb && !isGranted(context, PermissionType.STORAGE_MANAGER)) {
+                onNavigateTo(
+                    Destination.PermissionRationale(setOf(PermissionType.STORAGE_MANAGER))
+                )
+            } else {
+                updatesViewModel.downloadAll(selectedUpdates)
+            }
+        }
+        val onCancelUpdate: (String) -> Unit = { packageName ->
+            if (downloads.any { it.packageName == packageName && !it.isFinished }) {
+                checkingJobs.remove(packageName)
+                updatesViewModel.cancelDownload(packageName)
+            } else {
+                checkingJobs.remove(packageName)?.cancel()
+            }
+        }
+        if (tv) {
+            TvUpdatesScreen(
+                viewModel = updatesViewModel,
+                onNavigateTo = ::handleNavigation,
+                onRequestUpdate = onRequestUpdate,
+                onRequestUpdateAll = onRequestUpdateAll,
+                onCancelUpdate = onCancelUpdate,
+                onCancelAll = { updatesViewModel.cancelAll() },
+                checkingPackages = checkingJobs.keys
+            )
+        } else {
+            UpdatesScreen(
+                viewModel = updatesViewModel,
+                onNavigateTo = ::handleNavigation,
+                onRequestUpdate = onRequestUpdate,
+                onRequestUpdateAll = onRequestUpdateAll,
+                onCancelUpdate = onCancelUpdate,
+                onCancelAll = { updatesViewModel.cancelAll() },
+                checkingPackages = checkingJobs.keys
+            )
+        }
+    }
+
+    if (LocalUI.current == UI.TV) {
+        TvMainScreen(
+            initialTab = initialTab,
+            updateCount = updateCount,
+            onNavigateTo = onNavigateTo,
+            appsContent = { TvAppsGamesScreen(pageType = 0, onNavigateTo = onNavigateTo) },
+            gamesContent = { TvAppsGamesScreen(pageType = 1, onNavigateTo = ::handleNavigation) },
+            updatesContent = { UpdatesTab() }
+        )
+    } else {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = stringResource(MainTab.entries[pagerState.currentPage].labelRes),
+                    showNavigationIcon = false,
+                    actions = {
+                        IconButton(onClick = { onNavigateTo(Destination.Notifications) }) {
+                            BadgedBox(
+                                badge = {
+                                    if (notificationCount > 0) Badge { Text("$notificationCount") }
+                                }
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_notifications),
+                                    contentDescription = stringResource(
+                                        R.string.title_notifications
+                                    )
+                                )
                             }
-                        ) {
+                        }
+                        IconButton(onClick = { onNavigateTo(Destination.Downloads) }) {
                             Icon(
-                                painter = painterResource(R.drawable.ic_notifications),
-                                contentDescription = stringResource(R.string.title_notifications)
+                                painter = painterResource(R.drawable.ic_download_manager),
+                                contentDescription = stringResource(R.string.title_download_manager)
+                            )
+                        }
+                        IconButton(onClick = { showMoreSheet = true }) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_settings_account),
+                                contentDescription = stringResource(R.string.title_more)
                             )
                         }
                     }
-                    IconButton(onClick = { onNavigateTo(Destination.Downloads) }) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_download_manager),
-                            contentDescription = stringResource(R.string.title_download_manager)
-                        )
-                    }
-                    IconButton(onClick = { showMoreSheet = true }) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_settings_account),
-                            contentDescription = stringResource(R.string.title_more)
-                        )
-                    }
-                }
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { onNavigateTo(Destination.Search) }) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_round_search),
-                    contentDescription = stringResource(R.string.action_search)
                 )
-            }
-        },
-        bottomBar = {
-            NavigationBar {
-                MainTab.entries.forEachIndexed { index, tab ->
-                    NavigationBarItem(
-                        selected = pagerState.currentPage == index,
-                        onClick = {
-                            coroutineScope.launch { pagerState.animateScrollToPage(index) }
-                        },
-                        icon = {
-                            if (tab == MainTab.UPDATES && updateCount > 0) {
-                                BadgedBox(badge = { Badge { Text("$updateCount") } }) {
+            },
+            floatingActionButton = {
+                FloatingActionButton(onClick = { onNavigateTo(Destination.Search) }) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_round_search),
+                        contentDescription = stringResource(R.string.action_search)
+                    )
+                }
+            },
+            bottomBar = {
+                NavigationBar {
+                    MainTab.entries.forEachIndexed { index, tab ->
+                        NavigationBarItem(
+                            selected = pagerState.currentPage == index,
+                            onClick = {
+                                coroutineScope.launch { pagerState.animateScrollToPage(index) }
+                            },
+                            icon = {
+                                if (tab == MainTab.UPDATES && updateCount > 0) {
+                                    BadgedBox(badge = { Badge { Text("$updateCount") } }) {
+                                        Icon(
+                                            painter = painterResource(tab.iconRes),
+                                            contentDescription = null
+                                        )
+                                    }
+                                } else {
                                     Icon(
                                         painter = painterResource(tab.iconRes),
                                         contentDescription = null
                                     )
                                 }
-                            } else {
-                                Icon(
-                                    painter = painterResource(tab.iconRes),
-                                    contentDescription = null
-                                )
-                            }
-                        },
-                        label = { Text(stringResource(tab.labelRes)) }
-                    )
+                            },
+                            label = { Text(stringResource(tab.labelRes)) }
+                        )
+                    }
                 }
             }
-        }
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .padding(paddingValues)
-                .consumeWindowInsets(paddingValues)
-                .fillMaxSize()
-        ) {
-            HorizontalPager(
-                state = pagerState,
-                userScrollEnabled = false,
-                beyondViewportPageCount = MainTab.entries.size - 1,
-                modifier = Modifier.fillMaxSize()
-            ) { page ->
-                when (MainTab.entries[page]) {
-                    MainTab.APPS -> AppsGamesScreen(
-                        pageType = 0,
-                        onNavigateTo = onNavigateTo
-                    )
-                    MainTab.GAMES -> AppsGamesScreen(
-                        pageType = 1,
-                        onNavigateTo = ::handleNavigation
-                    )
-                    MainTab.UPDATES -> {
-                        UpdatesScreen(
-                            viewModel = updatesViewModel,
-                            onNavigateTo = ::handleNavigation,
-                            onRequestUpdate = { update ->
-                                if (!Preferences.getBoolean(
-                                        context,
-                                        PREFERENCE_UPDATES_WARN_TRACKERS,
-                                        false
-                                    )
-                                ) {
-                                    performUpdate(update)
-                                } else {
-                                    val job = coroutineScope.launch {
-                                        val installedVc = PackageUtil.getInstalledVersionCode(
-                                            context,
-                                            update.packageName
-                                        )
-                                        val trackers = updatesViewModel.getNewTrackers(
-                                            update.packageName,
-                                            installedVc
-                                        )
-                                        if (trackers.isEmpty()) {
-                                            performUpdate(update)
-                                        } else {
-                                            trackerWarning = update to trackers
-                                        }
-                                    }
-                                    checkingJobs[update.packageName] = job
-                                }
-                            },
-                            onRequestUpdateAll = { selectedUpdates ->
-                                val needsObb = selectedUpdates.any {
-                                    it.fileList.requiresObbDir()
-                                }
-                                if (needsObb &&
-                                    !isGranted(context, PermissionType.STORAGE_MANAGER)
-                                ) {
-                                    onNavigateTo(
-                                        Destination.PermissionRationale(
-                                            setOf(PermissionType.STORAGE_MANAGER)
-                                        )
-                                    )
-                                } else {
-                                    updatesViewModel.downloadAll(selectedUpdates)
-                                }
-                            },
-                            onCancelUpdate = { packageName ->
-                                if (downloads.any {
-                                        it.packageName == packageName && !it.isFinished
-                                    }
-                                ) {
-                                    checkingJobs.remove(packageName)
-                                    updatesViewModel.cancelDownload(packageName)
-                                } else {
-                                    checkingJobs.remove(packageName)?.cancel()
-                                }
-                            },
-                            onCancelAll = { updatesViewModel.cancelAll() },
-                            checkingPackages = checkingJobs.keys
+        ) { paddingValues ->
+            Box(
+                modifier = Modifier
+                    .padding(paddingValues)
+                    .consumeWindowInsets(paddingValues)
+                    .fillMaxSize()
+            ) {
+                HorizontalPager(
+                    state = pagerState,
+                    userScrollEnabled = false,
+                    beyondViewportPageCount = MainTab.entries.size - 1,
+                    modifier = Modifier.fillMaxSize()
+                ) { page ->
+                    when (MainTab.entries[page]) {
+                        MainTab.APPS -> AppsGamesScreen(
+                            pageType = 0,
+                            onNavigateTo = onNavigateTo
                         )
+                        MainTab.GAMES -> AppsGamesScreen(
+                            pageType = 1,
+                            onNavigateTo = ::handleNavigation
+                        )
+                        MainTab.UPDATES -> UpdatesTab()
                     }
                 }
             }
