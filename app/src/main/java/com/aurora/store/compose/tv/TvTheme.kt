@@ -5,6 +5,9 @@
 
 package com.aurora.store.compose.tv
 
+import androidx.compose.material3.MaterialTheme as M3MaterialTheme
+import androidx.compose.material3.Typography as M3Typography
+import androidx.compose.material3.darkColorScheme as m3DarkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
@@ -27,6 +30,31 @@ object TvDimens {
     val AppCardWidth = 200.dp
     val CategoryCardWidth = 260.dp
 }
+
+private const val TV_TYPE_SCALE = 1.25f
+
+private fun TextStyle.scaled(factor: Float) = copy(
+    fontSize = fontSize * factor,
+    lineHeight = lineHeight * factor
+)
+
+private fun M3Typography.scaled(factor: Float) = M3Typography(
+    displayLarge = displayLarge.scaled(factor),
+    displayMedium = displayMedium.scaled(factor),
+    displaySmall = displaySmall.scaled(factor),
+    headlineLarge = headlineLarge.scaled(factor),
+    headlineMedium = headlineMedium.scaled(factor),
+    headlineSmall = headlineSmall.scaled(factor),
+    titleLarge = titleLarge.scaled(factor),
+    titleMedium = titleMedium.scaled(factor),
+    titleSmall = titleSmall.scaled(factor),
+    bodyLarge = bodyLarge.scaled(factor),
+    bodyMedium = bodyMedium.scaled(factor),
+    bodySmall = bodySmall.scaled(factor),
+    labelLarge = labelLarge.scaled(factor),
+    labelMedium = labelMedium.scaled(factor),
+    labelSmall = labelSmall.scaled(factor)
+)
 
 /**
  * 10-foot typography, sized for reading from a couch.
@@ -53,6 +81,30 @@ private val TvTypography = Typography(
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun TvTheme(content: @Composable () -> Unit) {
+    // Screens that still use phone (Material 3) composables read this theme, so give them the
+    // same dark palette and larger type instead of the phone defaults.
+    M3MaterialTheme(
+        colorScheme = m3DarkColorScheme(
+            primary = Color(0xFF8AB4F8),
+            onPrimary = Color(0xFF062E6F),
+            primaryContainer = Color(0xFF1F3A6B),
+            onPrimaryContainer = Color(0xFFD6E3FF),
+            surface = Color(0xFF121317),
+            onSurface = Color(0xFFE4E2E6),
+            surfaceVariant = Color(0xFF24262C),
+            onSurfaceVariant = Color(0xFFC4C6D0),
+            background = Color(0xFF0C0D10),
+            onBackground = Color(0xFFE4E2E6)
+        ),
+        typography = M3Typography().scaled(TV_TYPE_SCALE)
+    ) {
+        TvTypographyTheme(content)
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun TvTypographyTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = darkColorScheme(
             primary = Color(0xFF8AB4F8),

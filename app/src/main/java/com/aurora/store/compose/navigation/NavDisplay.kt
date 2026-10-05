@@ -37,7 +37,9 @@ import com.aurora.store.ComposeActivity
 import com.aurora.store.R
 import com.aurora.store.compose.composition.LocalUI
 import com.aurora.store.compose.composition.UI
+import com.aurora.store.compose.tv.TvDownloadsScreen
 import com.aurora.store.compose.tv.TvSearchScreen
+import com.aurora.store.compose.tv.TvSettingsScreen
 import com.aurora.store.compose.ui.about.AboutScreen
 import com.aurora.store.compose.ui.accounts.AccountsScreen
 import com.aurora.store.compose.ui.accounts.GoogleLoginScreen
@@ -333,7 +335,13 @@ fun NavDisplay(startDestination: NavKey) {
 
             entry<Screen.Onboarding> { OnboardingScreen() }
             entry<Screen.Blacklist> { BlacklistScreen() }
-            entry<Screen.Downloads> { DownloadsScreen(onNavigateTo = ::navigate) }
+            entry<Screen.Downloads> {
+                if (LocalUI.current == UI.TV) {
+                    TvDownloadsScreen(onNavigateTo = ::navigate)
+                } else {
+                    DownloadsScreen(onNavigateTo = ::navigate)
+                }
+            }
             entry<Screen.Notifications> { NotificationsScreen(onNavigateTo = ::navigate) }
             entry<Screen.Accounts> { AccountsScreen(onNavigateTo = ::navigate) }
             entry<Screen.About> { AboutScreen() }
@@ -342,7 +350,13 @@ fun NavDisplay(startDestination: NavKey) {
             entry<Screen.Dispenser> { DispenserScreen() }
             entry<Screen.Installer> { InstallerScreen() }
             entry<Screen.Installed> { InstalledScreen(onNavigateTo = ::navigate) }
-            entry<Screen.Settings> { SettingsScreen(onNavigateTo = ::navigate) }
+            entry<Screen.Settings> {
+                if (LocalUI.current == UI.TV) {
+                    TvSettingsScreen(onNavigateTo = ::navigate)
+                } else {
+                    SettingsScreen(onNavigateTo = ::navigate)
+                }
+            }
             entry<Screen.NetworkPreference> { NetworkPreferenceScreen(onNavigateTo = ::navigate) }
             entry<Screen.UIPreference> { UIPreferenceScreen() }
             entry<Screen.NotificationPreference> { NotificationPreferenceScreen() }

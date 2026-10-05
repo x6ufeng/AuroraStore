@@ -76,10 +76,13 @@ import com.aurora.store.compose.composable.ShimmerCarouselSection
 import com.aurora.store.compose.composable.StreamCarousel
 import com.aurora.store.compose.composable.TopAppBar
 import com.aurora.store.compose.composable.TrackerUpdateWarningDialog
+import com.aurora.store.compose.composition.LocalUI
+import com.aurora.store.compose.composition.UI
 import com.aurora.store.compose.navigation.Destination
 import com.aurora.store.compose.navigation.Screen
 import com.aurora.store.compose.preview.AppPreviewProvider
 import com.aurora.store.compose.preview.ThemePreviewProvider
+import com.aurora.store.compose.tv.TvAppDetailsPane
 import com.aurora.store.compose.ui.commons.ForceRestartDialog
 import com.aurora.store.compose.ui.commons.PermissionRationaleScreen
 import com.aurora.store.compose.ui.details.composable.Actions
@@ -344,7 +347,8 @@ private fun ScreenContentApp(
 
     var scaffoldDirective = calculatePaneScaffoldDirective(windowAdaptiveInfo)
 
-    if (forceSinglePane) {
+    // TV has no room for a side pane and relies on a single, focus-friendly column
+    if (forceSinglePane || LocalUI.current == UI.TV) {
         scaffoldDirective = scaffoldDirective.copy(maxHorizontalPartitions = 1)
     }
 
@@ -484,36 +488,39 @@ private fun ScreenContentApp(
         )
     }
 
+    fun onMenuItem(menuItem: MenuItem) {
+        when (menuItem) {
+            MenuItem.FAVORITE -> onFavorite()
+
+            MenuItem.MANUAL_DOWNLOAD -> {
+                showExtraPane(ExtraScreen.ManualDownload)
+            }
+
+            MenuItem.INSTALL_OTHER_ACCOUNT -> {
+                showAccountPicker = true
+            }
+
+            MenuItem.SHARE -> context.share(app.displayName, app.packageName)
+
+            MenuItem.APP_INFO -> context.appInfo(app.packageName)
+
+            MenuItem.ADD_TO_HOME -> {
+                ShortcutManagerUtil.requestPinShortcut(context, app.packageName)
+            }
+
+            MenuItem.PLAY_STORE -> openPlayStore(context, app.packageName)
+        }
+    }
+
     @Composable
     fun SetupMenu() {
         AppDetailsMenu(
             isFavorite = isFavorite,
             state = state,
             canManualDownload = canAcquire,
-            canUseOtherAccount = accounts.size > 1
-        ) { menuItem ->
-            when (menuItem) {
-                MenuItem.FAVORITE -> onFavorite()
-
-                MenuItem.MANUAL_DOWNLOAD -> {
-                    showExtraPane(ExtraScreen.ManualDownload)
-                }
-
-                MenuItem.INSTALL_OTHER_ACCOUNT -> {
-                    showAccountPicker = true
-                }
-
-                MenuItem.SHARE -> context.share(app.displayName, app.packageName)
-
-                MenuItem.APP_INFO -> context.appInfo(app.packageName)
-
-                MenuItem.ADD_TO_HOME -> {
-                    ShortcutManagerUtil.requestPinShortcut(context, app.packageName)
-                }
-
-                MenuItem.PLAY_STORE -> openPlayStore(context, app.packageName)
-            }
-        }
+            canUseOtherAccount = accounts.size > 1,
+            onMenuItemClicked = ::onMenuItem
+        )
     }
 
     @Composable
@@ -601,6 +608,35 @@ private fun ScreenContentApp(
 
     @Composable
     fun MainPane() {
+        if (LocalUI.current == UI.TV) {
+            TvAppDetailsPane(
+                app = app,
+                state = state,
+                isFavorite = isFavorite,
+                canManualDownload = canAcquire,
+                canUseOtherAccount = accounts.size > 1,
+                suggestionsBundle = suggestionsBundle,
+                actions = { SetupActions() },
+                onMenuItem = ::onMenuItem,
+                onShowDeveloper = { showExtraPane(Screen.DevProfile(app.developerName)) },
+                onShowScreenshot = { showExtraPane(ExtraScreen.Screenshot(it)) },
+                onShowMore = { showExtraPane(ExtraScreen.More) },
+                onShowReviews = { showExtraPane(ExtraScreen.Review) },
+                onShowPermissions = if (app.permissions.isNotEmpty()) {
+                    { showExtraPane(ExtraScreen.Permission) }
+                } else {
+                    null
+                },
+                onShowPrivacy = if (exodusReport != null && exodusReport.id != -1) {
+                    { showExtraPane(ExtraScreen.Exodus) }
+                } else {
+                    null
+                },
+                onNavigateTo = onNavigateTo,
+                onLoadMoreCluster = onLoadMoreCluster
+            )
+            return
+        }
         Scaffold(
             topBar = {
                 TopAppBar(
